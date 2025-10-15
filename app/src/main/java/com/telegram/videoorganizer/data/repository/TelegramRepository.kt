@@ -5,6 +5,7 @@ import com.telegram.videoorganizer.data.model.Episode
 import com.telegram.videoorganizer.data.model.Season
 import com.telegram.videoorganizer.data.model.Series
 import com.telegram.videoorganizer.data.model.TelegramUpdate
+import com.telegram.videoorganizer.utils.Logger
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flow
 
@@ -14,36 +15,51 @@ class TelegramRepository {
     
     suspend fun verifyToken(token: String): Result<Boolean> {
         return try {
-            val response = api.getMe(token)
+            Logger.i("TelegramRepository", "Verifying bot token...")
+            val cleanToken = token.trim().replace("\\s+".toRegex(), "")
+            val url = "bot$cleanToken/getMe"
+            Logger.d("TelegramRepository", "Calling API: $url")
+            val response = api.getMe(url)
             if (response.ok && response.result != null) {
+                Logger.i("TelegramRepository", "Token verified successfully: ${response.result.firstName}")
                 Result.success(true)
             } else {
+                Logger.w("TelegramRepository", "Token verification failed: Invalid response")
                 Result.failure(Exception("Invalid token"))
             }
         } catch (e: Exception) {
+            Logger.e("TelegramRepository", "Token verification failed", e)
             Result.failure(e)
         }
     }
     
     suspend fun getUpdates(token: String, offset: Long? = null): Result<List<TelegramUpdate>> {
         return try {
-            val response = api.getUpdates(token, offset)
+            Logger.i("TelegramRepository", "Fetching updates from Telegram...")
+            val cleanToken = token.trim().replace("\\s+".toRegex(), "")
+            val url = "bot$cleanToken/getUpdates"
+            val response = api.getUpdates(url, offset)
             if (response.ok && response.result != null) {
+                Logger.i("TelegramRepository", "Fetched ${response.result.size} updates successfully")
                 Result.success(response.result)
             } else {
+                Logger.w("TelegramRepository", "Failed to get updates: Invalid response")
                 Result.failure(Exception("Failed to get updates"))
             }
         } catch (e: Exception) {
+            Logger.e("TelegramRepository", "Failed to fetch updates", e)
             Result.failure(e)
         }
     }
     
     suspend fun getFileUrl(token: String, fileId: String): Result<String> {
         return try {
-            val response = api.getFile(token, fileId)
+            val cleanToken = token.trim().replace("\\s+".toRegex(), "")
+            val url = "bot$cleanToken/getFile"
+            val response = api.getFile(url, fileId)
             if (response.ok && response.result?.filePath != null) {
-                val url = "https://api.telegram.org/file/bot$token/${response.result.filePath}"
-                Result.success(url)
+                val downloadUrl = "https://api.telegram.org/file/bot$cleanToken/${response.result.filePath}"
+                Result.success(downloadUrl)
             } else {
                 Result.failure(Exception("Failed to get file"))
             }
@@ -53,7 +69,9 @@ class TelegramRepository {
     }
     
     fun parseVideosToSeries(updates: List<TelegramUpdate>): List<Series> {
+        Logger.i("TelegramRepository", "Parsing ${updates.size} updates to series...")
         val videoMessages = updates.mapNotNull { it.message }.filter { it.video != null }
+        Logger.d("TelegramRepository", "Found ${videoMessages.size} video messages")
         val seriesMap = mutableMapOf<String, MutableMap<Int, MutableList<Episode>>>()
         
         videoMessages.forEach { message ->
@@ -100,7 +118,7 @@ class TelegramRepository {
             }
         }
         
-        return seriesMap.map { (name, seasons) ->
+        val result = seriesMap.map { (name, seasons) ->
             Series(
                 id = name.hashCode().toString(),
                 name = name,
@@ -112,5 +130,7 @@ class TelegramRepository {
                 }.sortedBy { it.seasonNumber }
             )
         }
+        Logger.i("TelegramRepository", "Parsed ${result.size} series with ${result.sumOf { it.seasons.sumOf { s -> s.episodes.size } }} total episodes")
+        return result
     }
 }
