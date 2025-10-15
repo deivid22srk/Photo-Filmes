@@ -57,12 +57,11 @@ class TelegramRepository {
         return try {
             Logger.i("TelegramRepository", "Getting file info for fileId: $fileId")
             val cleanToken = token.trim().replace("\\s+".toRegex(), "")
-            val url = "https://api.telegram.org/bot$cleanToken/getFile?file_id=$fileId"
-            Logger.d("TelegramRepository", "Calling getFile API: $url")
-            val fileResponse = api.getFileWithUrl(url)
-            if (fileResponse.ok && fileResponse.result != null) {
-                Logger.i("TelegramRepository", "File info obtained: ${fileResponse.result.filePath}")
-                Result.success(fileResponse.result)
+            Logger.d("TelegramRepository", "Calling getFile API with token and fileId")
+            val response = api.getFile(cleanToken, fileId)
+            if (response.ok && response.result != null) {
+                Logger.i("TelegramRepository", "File info obtained: ${response.result.filePath}")
+                Result.success(response.result)
             } else {
                 Logger.e("TelegramRepository", "Failed to get file: Invalid response")
                 Result.failure(Exception("Failed to get file"))
@@ -76,8 +75,7 @@ class TelegramRepository {
     suspend fun getFileUrl(token: String, fileId: String): Result<String> {
         return try {
             val cleanToken = token.trim().replace("\\s+".toRegex(), "")
-            val url = "https://api.telegram.org/bot$cleanToken/getFile"
-            val response = api.getFile(url, fileId)
+            val response = api.getFile(cleanToken, fileId)
             if (response.ok && response.result?.filePath != null) {
                 val downloadUrl = "https://api.telegram.org/file/bot$cleanToken/${response.result.filePath}"
                 Result.success(downloadUrl)

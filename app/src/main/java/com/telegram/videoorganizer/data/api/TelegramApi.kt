@@ -5,6 +5,8 @@ import com.telegram.videoorganizer.data.model.TelegramResponse
 import com.telegram.videoorganizer.data.model.TelegramUpdate
 import com.telegram.videoorganizer.data.model.TelegramUser
 import retrofit2.http.GET
+import retrofit2.http.POST
+import retrofit2.http.Path
 import retrofit2.http.Query
 import retrofit2.http.Url
 
@@ -23,14 +25,9 @@ interface TelegramApi {
         @Query("timeout") timeout: Int? = 0
     ): TelegramResponse<List<TelegramUpdate>>
     
-    @GET
+    @POST("bot{token}/getFile")
     suspend fun getFile(
-        @Url url: String,
+        @Path("token") token: String,
         @Query("file_id") fileId: String
-    ): TelegramResponse<TelegramFile>
-    
-    @GET
-    suspend fun getFileWithUrl(
-        @Url url: String
     ): TelegramResponse<TelegramFile>
 }
