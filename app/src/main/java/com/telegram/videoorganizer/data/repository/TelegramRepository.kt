@@ -14,7 +14,9 @@ class TelegramRepository {
     
     suspend fun verifyToken(token: String): Result<Boolean> {
         return try {
-            val response = api.getMe(token)
+            val cleanToken = token.trim().replace("\\s+".toRegex(), "")
+            val url = "bot$cleanToken/getMe"
+            val response = api.getMe(url)
             if (response.ok && response.result != null) {
                 Result.success(true)
             } else {
@@ -27,7 +29,9 @@ class TelegramRepository {
     
     suspend fun getUpdates(token: String, offset: Long? = null): Result<List<TelegramUpdate>> {
         return try {
-            val response = api.getUpdates(token, offset)
+            val cleanToken = token.trim().replace("\\s+".toRegex(), "")
+            val url = "bot$cleanToken/getUpdates"
+            val response = api.getUpdates(url, offset)
             if (response.ok && response.result != null) {
                 Result.success(response.result)
             } else {
@@ -40,10 +44,12 @@ class TelegramRepository {
     
     suspend fun getFileUrl(token: String, fileId: String): Result<String> {
         return try {
-            val response = api.getFile(token, fileId)
+            val cleanToken = token.trim().replace("\\s+".toRegex(), "")
+            val url = "bot$cleanToken/getFile"
+            val response = api.getFile(url, fileId)
             if (response.ok && response.result?.filePath != null) {
-                val url = "https://api.telegram.org/file/bot$token/${response.result.filePath}"
-                Result.success(url)
+                val downloadUrl = "https://api.telegram.org/file/bot$cleanToken/${response.result.filePath}"
+                Result.success(downloadUrl)
             } else {
                 Result.failure(Exception("Failed to get file"))
             }
