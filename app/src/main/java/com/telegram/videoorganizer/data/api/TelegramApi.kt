@@ -28,4 +28,9 @@ interface TelegramApi {
         @Url url: String,
         @Query("file_id") fileId: String
     ): TelegramResponse<TelegramFile>
+    
+    @GET
+    suspend fun getFileWithUrl(
+        @Url url: String
+    ): TelegramResponse<TelegramFile>
 }
