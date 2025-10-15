@@ -42,17 +42,18 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         viewModelScope.launch {
             _uiState.value = _uiState.value.copy(isLoading = true)
             
-            val result = repository.verifyToken(token)
+            val cleanToken = token.trim().replace("\\s+".toRegex(), "")
+            val result = repository.verifyToken(cleanToken)
             
             result.onSuccess {
-                preferencesManager.saveBotToken(token)
+                preferencesManager.saveBotToken(cleanToken)
                 _uiState.value = _uiState.value.copy(
-                    botToken = token,
+                    botToken = cleanToken,
                     isConnected = true,
                     isLoading = false,
                     error = null
                 )
-                loadVideos(token)
+                loadVideos(cleanToken)
             }.onFailure { error ->
                 _uiState.value = _uiState.value.copy(
                     isLoading = false,
