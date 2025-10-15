@@ -25,9 +25,8 @@ interface TelegramApi {
         @Query("timeout") timeout: Int? = 0
     ): TelegramResponse<List<TelegramUpdate>>
     
-    @POST("bot{token}/getFile")
+    @GET
     suspend fun getFile(
-        @Path("token") token: String,
-        @Query("file_id") fileId: String
+        @Url url: String
     ): TelegramResponse<TelegramFile>
 }
