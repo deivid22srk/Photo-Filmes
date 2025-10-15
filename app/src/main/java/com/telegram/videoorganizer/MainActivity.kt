@@ -16,6 +16,7 @@ import com.telegram.videoorganizer.ui.navigation.Screen
 import com.telegram.videoorganizer.ui.screens.HomeScreen
 import com.telegram.videoorganizer.ui.screens.SeriesDetailScreen
 import com.telegram.videoorganizer.ui.screens.SettingsScreen
+import com.telegram.videoorganizer.ui.screens.VideoPlayerScreen
 import com.telegram.videoorganizer.ui.theme.TelegramVideoOrganizerTheme
 import com.telegram.videoorganizer.ui.viewmodel.MainViewModel
 
@@ -61,6 +62,26 @@ class MainActivity : ComponentActivity() {
                             val seriesId = backStackEntry.arguments?.getString("seriesId") ?: ""
                             SeriesDetailScreen(
                                 seriesId = seriesId,
+                                viewModel = viewModel,
+                                onNavigateBack = {
+                                    navController.popBackStack()
+                                },
+                                onNavigateToPlayer = { season, episode ->
+                                    navController.navigate(
+                                        Screen.VideoPlayer.createRoute(seriesId, season, episode)
+                                    )
+                                }
+                            )
+                        }
+                        
+                        composable(Screen.VideoPlayer.route) { backStackEntry ->
+                            val seriesId = backStackEntry.arguments?.getString("seriesId") ?: ""
+                            val seasonNumber = backStackEntry.arguments?.getString("seasonNumber")?.toIntOrNull() ?: 1
+                            val episodeNumber = backStackEntry.arguments?.getString("episodeNumber")?.toIntOrNull() ?: 1
+                            VideoPlayerScreen(
+                                seriesId = seriesId,
+                                seasonNumber = seasonNumber,
+                                episodeNumber = episodeNumber,
                                 viewModel = viewModel,
                                 onNavigateBack = {
                                     navController.popBackStack()

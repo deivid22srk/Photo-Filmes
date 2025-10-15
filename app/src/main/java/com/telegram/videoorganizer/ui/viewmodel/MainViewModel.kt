@@ -21,6 +21,14 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     private val _uiState = MutableStateFlow(UiState())
     val uiState: StateFlow<UiState> = _uiState.asStateFlow()
     
+    private val _isLoadingVideoUrl = MutableStateFlow(false)
+    val isLoadingVideoUrl: StateFlow<Boolean> = _isLoadingVideoUrl.asStateFlow()
+    
+    private val _videoError = MutableStateFlow<String?>(null)
+    val videoError: StateFlow<String?> = _videoError.asStateFlow()
+    
+    private val videoUrlCache = mutableMapOf<String, String>()
+    
     init {
         loadBotToken()
         loadLoggingPreference()
@@ -151,6 +159,78 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     
     fun getLogSize(): Long {
         return Logger.getLogSize()
+    }
+    
+    fun getVideoUrl(fileId: String): kotlinx.coroutines.flow.Flow<String?> = kotlinx.coroutines.flow.flow {
+        if (videoUrlCache.containsKey(fileId)) {
+            emit(videoUrlCache[fileId])
+            return@flow
+        }
+        
+        _isLoadingVideoUrl.value = true
+        _videoError.value = null
+        
+        val token = preferencesManager.botToken.first()
+        if (token == null) {
+            _videoError.value = "Bot token not found"
+            _isLoadingVideoUrl.value = false
+            emit(null)
+            return@flow
+        }
+        
+        try {
+            Logger.i("MainViewModel", "Getting file info for fileId: $fileId")
+            val fileResult = repository.getFile(token, fileId)
+            
+            fileResult.onSuccess { file ->
+                val videoUrl = "https://api.telegram.org/file/bot$token/${file.filePath}"
+                Logger.i("MainViewModel", "Video URL obtained: $videoUrl")
+                videoUrlCache[fileId] = videoUrl
+                _isLoadingVideoUrl.value = false
+                emit(videoUrl)
+            }.onFailure { error ->
+                Logger.e("MainViewModel", "Failed to get video URL: ${error.message}")
+                _videoError.value = error.message ?: "Failed to load video"
+                _isLoadingVideoUrl.value = false
+                emit(null)
+            }
+        } catch (e: Exception) {
+            Logger.e("MainViewModel", "Exception getting video URL: ${e.message}")
+            _videoError.value = e.message ?: "Failed to load video"
+            _isLoadingVideoUrl.value = false
+            emit(null)
+        }
+    }
+    
+    fun retryLoadVideo(fileId: String) {
+        videoUrlCache.remove(fileId)
+        _videoError.value = null
+    }
+    
+    fun exportSettings(onResult: (Result<String>) -> Unit) {
+        viewModelScope.launch {
+            Logger.i("MainViewModel", "Exporting settings...")
+            val result = preferencesManager.exportSettings()
+            result.onSuccess { path ->
+                Logger.i("MainViewModel", "Settings exported to: $path")
+            }.onFailure { error ->
+                Logger.e("MainViewModel", "Failed to export settings: ${error.message}")
+            }
+            onResult(result)
+        }
+    }
+    
+    fun importSettings(filePath: String, onResult: (Result<Boolean>) -> Unit) {
+        viewModelScope.launch {
+            Logger.i("MainViewModel", "Importing settings from: $filePath")
+            val result = preferencesManager.importSettings(filePath)
+            result.onSuccess {
+                Logger.i("MainViewModel", "Settings imported successfully")
+            }.onFailure { error ->
+                Logger.e("MainViewModel", "Failed to import settings: ${error.message}")
+            }
+            onResult(result)
+        }
     }
     
     data class UiState(

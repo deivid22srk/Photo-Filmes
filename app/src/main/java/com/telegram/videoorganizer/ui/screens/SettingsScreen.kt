@@ -1,6 +1,9 @@
 package com.telegram.videoorganizer.ui.screens
 
+import android.app.Activity
 import android.content.Intent
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.KeyboardActions
@@ -34,6 +37,36 @@ fun SettingsScreen(
     var showToken by remember { mutableStateOf(false) }
     val keyboardController = LocalSoftwareKeyboardController.current
     val scrollState = rememberScrollState()
+    
+    var exportMessage by remember { mutableStateOf<String?>(null) }
+    var importMessage by remember { mutableStateOf<String?>(null) }
+    var showExportDialog by remember { mutableStateOf(false) }
+    
+    val filePickerLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.StartActivityForResult()
+    ) { result ->
+        if (result.resultCode == Activity.RESULT_OK) {
+            result.data?.data?.let { uri ->
+                val filePath = context.contentResolver.openInputStream(uri)?.use { inputStream ->
+                    val tempFile = File.createTempFile("import_settings", ".json", context.cacheDir)
+                    tempFile.outputStream().use { outputStream ->
+                        inputStream.copyTo(outputStream)
+                    }
+                    tempFile.absolutePath
+                }
+                
+                filePath?.let { path ->
+                    viewModel.importSettings(path) { result ->
+                        result.onSuccess {
+                            importMessage = "Settings imported successfully!"
+                        }.onFailure { error ->
+                            importMessage = "Import failed: ${error.message}"
+                        }
+                    }
+                }
+            }
+        }
+    }
     
     LaunchedEffect(uiState.botToken) {
         tokenInput = uiState.botToken ?: ""
@@ -344,6 +377,128 @@ fun SettingsScreen(
             
             HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
             
+            Text(
+                text = "Backup & Restore",
+                style = MaterialTheme.typography.headlineSmall,
+                color = MaterialTheme.colorScheme.onSurface
+            )
+            
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                colors = CardDefaults.cardColors(
+                    containerColor = MaterialTheme.colorScheme.surfaceVariant
+                )
+            ) {
+                Column(
+                    modifier = Modifier.padding(16.dp),
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(
+                            imageVector = Icons.Default.Backup,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.primary
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                text = "Settings Management",
+                                style = MaterialTheme.typography.titleMedium,
+                                color = MaterialTheme.colorScheme.onSurface
+                            )
+                            Spacer(modifier = Modifier.height(4.dp))
+                            Text(
+                                text = "Export or import all app settings",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                    }
+                    
+                    HorizontalDivider()
+                    
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        OutlinedButton(
+                            onClick = {
+                                viewModel.exportSettings { result ->
+                                    result.onSuccess { path ->
+                                        exportMessage = path
+                                        showExportDialog = true
+                                    }.onFailure { error ->
+                                        exportMessage = "Export failed: ${error.message}"
+                                        showExportDialog = true
+                                    }
+                                }
+                            },
+                            modifier = Modifier.weight(1f)
+                        ) {
+                            Icon(Icons.Default.Upload, contentDescription = null)
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text("Export")
+                        }
+                        
+                        OutlinedButton(
+                            onClick = {
+                                val intent = Intent(Intent.ACTION_OPEN_DOCUMENT).apply {
+                                    addCategory(Intent.CATEGORY_OPENABLE)
+                                    type = "application/json"
+                                }
+                                filePickerLauncher.launch(intent)
+                            },
+                            modifier = Modifier.weight(1f)
+                        ) {
+                            Icon(Icons.Default.Download, contentDescription = null)
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text("Import")
+                        }
+                    }
+                    
+                    importMessage?.let { message ->
+                        Card(
+                            modifier = Modifier.fillMaxWidth(),
+                            colors = CardDefaults.cardColors(
+                                containerColor = if (message.contains("success")) {
+                                    MaterialTheme.colorScheme.primaryContainer
+                                } else {
+                                    MaterialTheme.colorScheme.errorContainer
+                                }
+                            )
+                        ) {
+                            Row(
+                                modifier = Modifier.padding(12.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Icon(
+                                    imageVector = if (message.contains("success")) Icons.Default.CheckCircle else Icons.Default.Error,
+                                    contentDescription = null,
+                                    tint = if (message.contains("success")) {
+                                        MaterialTheme.colorScheme.onPrimaryContainer
+                                    } else {
+                                        MaterialTheme.colorScheme.onErrorContainer
+                                    },
+                                    modifier = Modifier.size(20.dp)
+                                )
+                                Spacer(modifier = Modifier.width(8.dp))
+                                Text(
+                                    text = message,
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = if (message.contains("success")) {
+                                        MaterialTheme.colorScheme.onPrimaryContainer
+                                    } else {
+                                        MaterialTheme.colorScheme.onErrorContainer
+                                    }
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+            
+            HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
+            
             Card(
                 modifier = Modifier.fillMaxWidth(),
                 colors = CardDefaults.cardColors(
@@ -422,5 +577,81 @@ fun SettingsScreen(
                 }
             }
         }
+    }
+    
+    if (showExportDialog) {
+        AlertDialog(
+            onDismissRequest = { 
+                showExportDialog = false
+                exportMessage = null
+            },
+            icon = {
+                Icon(
+                    imageVector = if (exportMessage?.startsWith("/") == true) Icons.Default.CheckCircle else Icons.Default.Error,
+                    contentDescription = null,
+                    tint = if (exportMessage?.startsWith("/") == true) {
+                        MaterialTheme.colorScheme.primary
+                    } else {
+                        MaterialTheme.colorScheme.error
+                    }
+                )
+            },
+            title = {
+                Text(
+                    text = if (exportMessage?.startsWith("/") == true) "Export Successful" else "Export Failed"
+                )
+            },
+            text = {
+                Column {
+                    if (exportMessage?.startsWith("/") == true) {
+                        Text("Settings exported successfully to:")
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Text(
+                            text = exportMessage ?: "",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    } else {
+                        Text(exportMessage ?: "Unknown error")
+                    }
+                }
+            },
+            confirmButton = {
+                if (exportMessage?.startsWith("/") == true) {
+                    TextButton(
+                        onClick = {
+                            val file = File(exportMessage!!)
+                            if (file.exists()) {
+                                val uri = FileProvider.getUriForFile(
+                                    context,
+                                    "${context.packageName}.fileprovider",
+                                    file
+                                )
+                                val shareIntent = Intent(Intent.ACTION_SEND).apply {
+                                    type = "application/json"
+                                    putExtra(Intent.EXTRA_STREAM, uri)
+                                    addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                                }
+                                context.startActivity(Intent.createChooser(shareIntent, "Share Settings"))
+                            }
+                            showExportDialog = false
+                            exportMessage = null
+                        }
+                    ) {
+                        Text("Share")
+                    }
+                }
+            },
+            dismissButton = {
+                TextButton(
+                    onClick = {
+                        showExportDialog = false
+                        exportMessage = null
+                    }
+                ) {
+                    Text("Close")
+                }
+            }
+        )
     }
 }

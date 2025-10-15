@@ -4,6 +4,7 @@ import com.telegram.videoorganizer.data.api.RetrofitClient
 import com.telegram.videoorganizer.data.model.Episode
 import com.telegram.videoorganizer.data.model.Season
 import com.telegram.videoorganizer.data.model.Series
+import com.telegram.videoorganizer.data.model.TelegramFile
 import com.telegram.videoorganizer.data.model.TelegramUpdate
 import com.telegram.videoorganizer.utils.Logger
 import kotlinx.coroutines.flow.Flow
@@ -48,6 +49,21 @@ class TelegramRepository {
             }
         } catch (e: Exception) {
             Logger.e("TelegramRepository", "Failed to fetch updates", e)
+            Result.failure(e)
+        }
+    }
+    
+    suspend fun getFile(token: String, fileId: String): Result<TelegramFile> {
+        return try {
+            val cleanToken = token.trim().replace("\\s+".toRegex(), "")
+            val url = "https://api.telegram.org/bot$cleanToken/getFile"
+            val response = api.getFile(url, fileId)
+            if (response.ok && response.result != null) {
+                Result.success(response.result)
+            } else {
+                Result.failure(Exception("Failed to get file"))
+            }
+        } catch (e: Exception) {
             Result.failure(e)
         }
     }

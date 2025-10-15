@@ -24,7 +24,8 @@ import com.telegram.videoorganizer.ui.viewmodel.MainViewModel
 fun SeriesDetailScreen(
     seriesId: String,
     viewModel: MainViewModel,
-    onNavigateBack: () -> Unit
+    onNavigateBack: () -> Unit,
+    onNavigateToPlayer: (Int, Int) -> Unit
 ) {
     val uiState by viewModel.uiState.collectAsState()
     val series = uiState.series.find { it.id == seriesId }
@@ -84,7 +85,12 @@ fun SeriesDetailScreen(
             
             val currentSeason = series.seasons.find { it.seasonNumber == selectedSeason }
             if (currentSeason != null) {
-                EpisodeList(season = currentSeason)
+                EpisodeList(
+                    season = currentSeason,
+                    onEpisodeClick = { episodeNumber ->
+                        onNavigateToPlayer(selectedSeason, episodeNumber)
+                    }
+                )
             }
         }
     }
@@ -117,24 +123,33 @@ fun SeasonSelector(
 }
 
 @Composable
-fun EpisodeList(season: Season) {
+fun EpisodeList(
+    season: Season,
+    onEpisodeClick: (Int) -> Unit
+) {
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
         contentPadding = PaddingValues(16.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
         items(season.episodes) { episode ->
-            EpisodeCard(episode = episode)
+            EpisodeCard(
+                episode = episode,
+                onClick = { onEpisodeClick(episode.episodeNumber) }
+            )
         }
     }
 }
 
 @Composable
-fun EpisodeCard(episode: Episode) {
+fun EpisodeCard(
+    episode: Episode,
+    onClick: () -> Unit
+) {
     Card(
         modifier = Modifier
             .fillMaxWidth()
-            .clickable { },
+            .clickable(onClick = onClick),
         elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
         colors = CardDefaults.cardColors(
             containerColor = MaterialTheme.colorScheme.surfaceVariant
