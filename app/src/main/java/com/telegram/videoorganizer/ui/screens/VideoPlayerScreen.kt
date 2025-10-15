@@ -26,7 +26,7 @@ import androidx.media3.ui.PlayerView
 import com.telegram.videoorganizer.data.model.Episode
 import com.telegram.videoorganizer.ui.viewmodel.MainViewModel
 
-@OptIn(ExperimentalMaterial3Api::class, UnstableApi::class)
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun VideoPlayerScreen(
     seriesId: String,
@@ -47,7 +47,10 @@ fun VideoPlayerScreen(
             modifier = Modifier.fillMaxSize(),
             contentAlignment = Alignment.Center
         ) {
-            Column(horizontalAlignment = Alignment.CenterVertically) {
+            Column(
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.Center
+            ) {
                 Text("Episode not found")
                 Spacer(modifier = Modifier.height(16.dp))
                 Button(onClick = onNavigateBack) {
@@ -63,6 +66,7 @@ fun VideoPlayerScreen(
     val videoError by viewModel.videoError.collectAsState()
     
     val exoPlayer = remember {
+        @OptIn(UnstableApi::class)
         ExoPlayer.Builder(context).build().apply {
             repeatMode = Player.REPEAT_MODE_OFF
         }
@@ -145,6 +149,7 @@ fun VideoPlayerScreen(
                 videoUrl != null -> {
                     AndroidView(
                         factory = { ctx ->
+                            @OptIn(UnstableApi::class)
                             PlayerView(ctx).apply {
                                 player = exoPlayer
                                 useController = true
