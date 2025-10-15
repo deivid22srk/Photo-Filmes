@@ -12,12 +12,12 @@ interface TelegramApi {
     
     @GET("bot{token}/getMe")
     suspend fun getMe(
-        @Path("token") token: String
+        @Path(value = "token", encoded = false) token: String
     ): TelegramResponse<TelegramUser>
     
     @GET("bot{token}/getUpdates")
     suspend fun getUpdates(
-        @Path("token") token: String,
+        @Path(value = "token", encoded = false) token: String,
         @Query("offset") offset: Long? = null,
         @Query("limit") limit: Int? = 100,
         @Query("timeout") timeout: Int? = 0
@@ -25,7 +25,7 @@ interface TelegramApi {
     
     @GET("bot{token}/getFile")
     suspend fun getFile(
-        @Path("token") token: String,
+        @Path(value = "token", encoded = false) token: String,
         @Query("file_id") fileId: String
     ): TelegramResponse<TelegramFile>
 }
