@@ -2,7 +2,6 @@ package com.telegram.videoorganizer.ui.screens
 
 import android.view.ViewGroup
 import android.widget.FrameLayout
-import androidx.annotation.OptIn
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.material.icons.Icons
@@ -26,6 +25,7 @@ import androidx.media3.ui.PlayerView
 import com.telegram.videoorganizer.data.model.Episode
 import com.telegram.videoorganizer.ui.viewmodel.MainViewModel
 
+@androidx.annotation.OptIn(androidx.media3.common.util.UnstableApi::class)
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun VideoPlayerScreen(
@@ -66,7 +66,6 @@ fun VideoPlayerScreen(
     val videoError by viewModel.videoError.collectAsState()
     
     val exoPlayer = remember {
-        @OptIn(UnstableApi::class)
         ExoPlayer.Builder(context).build().apply {
             repeatMode = Player.REPEAT_MODE_OFF
         }
@@ -149,7 +148,6 @@ fun VideoPlayerScreen(
                 videoUrl != null -> {
                     AndroidView(
                         factory = { ctx ->
-                            @OptIn(UnstableApi::class)
                             PlayerView(ctx).apply {
                                 player = exoPlayer
                                 useController = true
