@@ -1,5 +1,7 @@
 package com.telegram.videoorganizer.ui.screens
 
+import android.app.Activity
+import android.content.pm.ActivityInfo
 import android.view.ViewGroup
 import android.widget.FrameLayout
 import androidx.compose.foundation.background
@@ -12,9 +14,12 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
-import androidx.compose.ui.platform.LocalLifecycleOwner
+import androidx.core.view.WindowCompat
+import androidx.core.view.WindowInsetsCompat
+import androidx.core.view.WindowInsetsControllerCompat
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.media3.common.MediaItem
@@ -36,6 +41,7 @@ fun VideoPlayerScreen(
     onNavigateBack: () -> Unit
 ) {
     val context = LocalContext.current
+    val activity = context as? Activity
     val uiState by viewModel.uiState.collectAsState()
     
     val series = uiState.series.find { it.id == seriesId }
@@ -61,9 +67,10 @@ fun VideoPlayerScreen(
         return
     }
     
-    val videoUrl by viewModel.getVideoUrl(episode.fileId).collectAsState(initial = null)
+    val videoUrl by viewModel.videoUrl.collectAsState()
     val isLoadingUrl by viewModel.isLoadingVideoUrl.collectAsState()
     val videoError by viewModel.videoError.collectAsState()
+    var isFullscreen by remember { mutableStateOf(false) }
     
     val exoPlayer = remember {
         ExoPlayer.Builder(context).build().apply {
@@ -86,7 +93,20 @@ fun VideoPlayerScreen(
         onDispose {
             lifecycleOwner.lifecycle.removeObserver(observer)
             exoPlayer.release()
+            viewModel.clearVideoUrl()
+            
+            // Restore normal screen orientation and system UI
+            activity?.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED
+            activity?.let { act ->
+                WindowCompat.getInsetsController(act.window, act.window.decorView).apply {
+                    show(WindowInsetsCompat.Type.systemBars())
+                }
+            }
         }
+    }
+    
+    LaunchedEffect(episode.fileId) {
+        viewModel.loadVideoUrl(episode.fileId)
     }
     
     LaunchedEffect(videoUrl) {
@@ -98,40 +118,30 @@ fun VideoPlayerScreen(
         }
     }
     
-    Scaffold(
-        topBar = {
-            TopAppBar(
-                title = { 
-                    Column {
-                        Text(
-                            text = series?.name ?: "",
-                            style = MaterialTheme.typography.titleMedium
-                        )
-                        Text(
-                            text = "S${seasonNumber.toString().padStart(2, '0')}E${episodeNumber.toString().padStart(2, '0')} - ${episode.title}",
-                            style = MaterialTheme.typography.bodySmall
-                        )
-                    }
-                },
-                navigationIcon = {
-                    IconButton(onClick = {
-                        exoPlayer.release()
-                        onNavigateBack()
-                    }) {
-                        Icon(Icons.Default.ArrowBack, contentDescription = "Back")
-                    }
-                },
-                colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = MaterialTheme.colorScheme.primaryContainer,
-                    titleContentColor = MaterialTheme.colorScheme.onPrimaryContainer,
-                )
-            )
+    fun toggleFullscreen() {
+        isFullscreen = !isFullscreen
+        activity?.let { act ->
+            if (isFullscreen) {
+                act.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE
+                WindowCompat.setDecorFitsSystemWindows(act.window, false)
+                WindowCompat.getInsetsController(act.window, act.window.decorView).apply {
+                    hide(WindowInsetsCompat.Type.systemBars())
+                    systemBarsBehavior = WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
+                }
+            } else {
+                act.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED
+                WindowCompat.setDecorFitsSystemWindows(act.window, true)
+                WindowCompat.getInsetsController(act.window, act.window.decorView).apply {
+                    show(WindowInsetsCompat.Type.systemBars())
+                }
+            }
         }
-    ) { paddingValues ->
+    }
+    
+    if (isFullscreen) {
         Box(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(paddingValues)
                 .background(Color.Black)
         ) {
             when {
@@ -151,6 +161,9 @@ fun VideoPlayerScreen(
                             PlayerView(ctx).apply {
                                 player = exoPlayer
                                 useController = true
+                                setControllerVisibilityListener(PlayerView.ControllerVisibilityListener { visibility ->
+                                    // Controller visibility handled by ExoPlayer
+                                })
                                 layoutParams = FrameLayout.LayoutParams(
                                     ViewGroup.LayoutParams.MATCH_PARENT,
                                     ViewGroup.LayoutParams.MATCH_PARENT
@@ -162,6 +175,94 @@ fun VideoPlayerScreen(
                 }
                 else -> {
                     LoadingVideoState()
+                }
+            }
+            
+            IconButton(
+                onClick = { toggleFullscreen() },
+                modifier = Modifier
+                    .align(Alignment.TopStart)
+                    .padding(16.dp)
+            ) {
+                Icon(
+                    imageVector = Icons.Default.FullscreenExit,
+                    contentDescription = "Exit Fullscreen",
+                    tint = Color.White,
+                    modifier = Modifier.size(32.dp)
+                )
+            }
+        }
+    } else {
+        Scaffold(
+            topBar = {
+                TopAppBar(
+                    title = { 
+                        Column {
+                            Text(
+                                text = series?.name ?: "",
+                                style = MaterialTheme.typography.titleMedium
+                            )
+                            Text(
+                                text = "S${seasonNumber.toString().padStart(2, '0')}E${episodeNumber.toString().padStart(2, '0')} - ${episode.title}",
+                                style = MaterialTheme.typography.bodySmall
+                            )
+                        }
+                    },
+                    navigationIcon = {
+                        IconButton(onClick = {
+                            exoPlayer.release()
+                            onNavigateBack()
+                        }) {
+                            Icon(Icons.Default.ArrowBack, contentDescription = "Back")
+                        }
+                    },
+                    actions = {
+                        IconButton(onClick = { toggleFullscreen() }) {
+                            Icon(Icons.Default.Fullscreen, contentDescription = "Fullscreen")
+                        }
+                    },
+                    colors = TopAppBarDefaults.topAppBarColors(
+                        containerColor = MaterialTheme.colorScheme.primaryContainer,
+                        titleContentColor = MaterialTheme.colorScheme.onPrimaryContainer,
+                    )
+                )
+            }
+        ) { paddingValues ->
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(paddingValues)
+                    .background(Color.Black)
+            ) {
+                when {
+                    isLoadingUrl -> {
+                        LoadingVideoState()
+                    }
+                    videoError != null -> {
+                        ErrorVideoState(
+                            error = videoError ?: "Unknown error",
+                            onRetry = { viewModel.retryLoadVideo(episode.fileId) },
+                            onBack = onNavigateBack
+                        )
+                    }
+                    videoUrl != null -> {
+                        AndroidView(
+                            factory = { ctx ->
+                                PlayerView(ctx).apply {
+                                    player = exoPlayer
+                                    useController = true
+                                    layoutParams = FrameLayout.LayoutParams(
+                                        ViewGroup.LayoutParams.MATCH_PARENT,
+                                        ViewGroup.LayoutParams.MATCH_PARENT
+                                    )
+                                }
+                            },
+                            modifier = Modifier.fillMaxSize()
+                        )
+                    }
+                    else -> {
+                        LoadingVideoState()
+                    }
                 }
             }
         }

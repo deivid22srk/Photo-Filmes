@@ -27,6 +27,9 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     private val _videoError = MutableStateFlow<String?>(null)
     val videoError: StateFlow<String?> = _videoError.asStateFlow()
     
+    private val _videoUrl = MutableStateFlow<String?>(null)
+    val videoUrl: StateFlow<String?> = _videoUrl.asStateFlow()
+    
     private val videoUrlCache = mutableMapOf<String, String>()
     
     init {
@@ -161,50 +164,57 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         return Logger.getLogSize()
     }
     
-    fun getVideoUrl(fileId: String): kotlinx.coroutines.flow.Flow<String?> = kotlinx.coroutines.flow.flow {
-        if (videoUrlCache.containsKey(fileId)) {
-            emit(videoUrlCache[fileId])
-            return@flow
-        }
-        
-        _isLoadingVideoUrl.value = true
-        _videoError.value = null
-        
-        val token = preferencesManager.botToken.first()
-        if (token == null) {
-            _videoError.value = "Bot token not found"
-            _isLoadingVideoUrl.value = false
-            emit(null)
-            return@flow
-        }
-        
-        try {
-            Logger.i("MainViewModel", "Getting file info for fileId: $fileId")
-            val fileResult = repository.getFile(token, fileId)
-            
-            fileResult.onSuccess { file ->
-                val videoUrl = "https://api.telegram.org/file/bot$token/${file.filePath}"
-                Logger.i("MainViewModel", "Video URL obtained: $videoUrl")
-                videoUrlCache[fileId] = videoUrl
-                _isLoadingVideoUrl.value = false
-                emit(videoUrl)
-            }.onFailure { error ->
-                Logger.e("MainViewModel", "Failed to get video URL: ${error.message}")
-                _videoError.value = error.message ?: "Failed to load video"
-                _isLoadingVideoUrl.value = false
-                emit(null)
+    fun loadVideoUrl(fileId: String) {
+        viewModelScope.launch {
+            if (videoUrlCache.containsKey(fileId)) {
+                _videoUrl.value = videoUrlCache[fileId]
+                return@launch
             }
-        } catch (e: Exception) {
-            Logger.e("MainViewModel", "Exception getting video URL: ${e.message}")
-            _videoError.value = e.message ?: "Failed to load video"
-            _isLoadingVideoUrl.value = false
-            emit(null)
+            
+            _isLoadingVideoUrl.value = true
+            _videoError.value = null
+            _videoUrl.value = null
+            
+            val token = preferencesManager.botToken.first()
+            if (token == null) {
+                _videoError.value = "Bot token not found"
+                _isLoadingVideoUrl.value = false
+                return@launch
+            }
+            
+            try {
+                Logger.i("MainViewModel", "Getting file info for fileId: $fileId")
+                val fileResult = repository.getFile(token, fileId)
+                
+                fileResult.onSuccess { file ->
+                    val videoUrl = "https://api.telegram.org/file/bot$token/${file.filePath}"
+                    Logger.i("MainViewModel", "Video URL obtained: $videoUrl")
+                    videoUrlCache[fileId] = videoUrl
+                    _videoUrl.value = videoUrl
+                    _isLoadingVideoUrl.value = false
+                }.onFailure { error ->
+                    Logger.e("MainViewModel", "Failed to get video URL: ${error.message}")
+                    _videoError.value = error.message ?: "Failed to load video"
+                    _isLoadingVideoUrl.value = false
+                }
+            } catch (e: Exception) {
+                Logger.e("MainViewModel", "Exception getting video URL: ${e.message}")
+                _videoError.value = e.message ?: "Failed to load video"
+                _isLoadingVideoUrl.value = false
+            }
         }
     }
     
     fun retryLoadVideo(fileId: String) {
         videoUrlCache.remove(fileId)
         _videoError.value = null
+        loadVideoUrl(fileId)
+    }
+    
+    fun clearVideoUrl() {
+        _videoUrl.value = null
+        _videoError.value = null
+        _isLoadingVideoUrl.value = false
     }
     
     fun exportSettings(onResult: (Result<String>) -> Unit) {
